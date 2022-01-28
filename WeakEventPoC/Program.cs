@@ -10,15 +10,16 @@ namespace WeakEventPoC
         {
             var manager = new CacheManager();
 
-            var key1 = new MyKey(manager, "key1");
-            
+            var key1 = new MyKey("key1");
+            manager.Add(key1);
 
-            var key2 = new MyKey(manager, "key2");
-
+            var key2 = new MyKey("key2");
+            manager.Add(key2);
 
             Console.WriteLine($"RAMUsage: {manager.GetRAMUsage()}");
 
             key1.Dispose();
+            //manager.Remove(key1); // The user *should* remove the item, but if they don't it will still function as long as Dispose() is called
             key1 = null;
 
             Console.WriteLine($"RAMUsage: {manager.GetRAMUsage()}");
@@ -35,12 +36,15 @@ namespace WeakEventPoC
 
         public void Add(MyKey key)
         {
+            key.manager = this;
+            NotifyRAMEventWeakEventManager.AddHandler(this, key.OnNotifyRAM);
             cache.Add(key, new object());
         }
 
         public void Remove(MyKey key)
         {
             cache.Remove(key);
+            NotifyRAMEventWeakEventManager.RemoveHandler(this, key.OnNotifyRAM);
         }
 
         public long GetRAMUsage()
@@ -54,12 +58,10 @@ namespace WeakEventPoC
     public class MyKey : IDisposable
     {
         private readonly string name;
-        private readonly CacheManager manager;
-        public MyKey(CacheManager manager, string name)
+        internal CacheManager manager;
+        public MyKey(string name)
         {
-            this.manager = manager ?? throw new ArgumentNullException(nameof(manager));
             this.name = name ?? throw new ArgumentNullException(nameof(name));
-            NotifyRAMEventWeakEventManager.AddHandler(manager, OnNotifyRAM);
         }
 
         ~MyKey()
@@ -83,7 +85,7 @@ namespace WeakEventPoC
             NotifyRAMEventWeakEventManager.RemoveHandler(manager, OnNotifyRAM);
         }
 
-        private void OnNotifyRAM(object source, NotifyRAMEventArgs e)
+        internal void OnNotifyRAM(object source, NotifyRAMEventArgs e)
         {
             e.RAMBytesUsed += 3;
         }
